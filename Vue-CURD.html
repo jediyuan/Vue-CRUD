@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Vue Table CURD</title>
+	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<link rel="stylesheet" href="lib/bootstrap.min.css">
+	<script src="lib/vue-1.0.26.js"></script>
+	<style>
+		html,body{width: 100%; font-family: 'Microsoft Yahei';font-size: 16px;}
+		*{margin:0;padding:0;}
+		.list{width:100%;margin:0 auto;overflow: hidden;background: #ccc}
+		div{margin:10px 0;}
+		.head{height: 50px;line-height: 50px;font-size: 30px;text-align: center;color:#fff;}
+		.showBox{width: 1100px;margin:0 auto;background: #263e2d; padding:20px; }
+		.blur{width: 100%;height: 100%;margin:0;background: rgba(0,0,0,.5);position: fixed;}
+		.editBox{position: fixed;width: 300px;padding:20px;background: #fff;margin:0;top:50%;left:50%;margin-top:-266px;margin-left: -150px;border-radius: 10px;box-shadow: 0 0 10px #000;}
+		.isModified{width:60%;margin:0 auto;}
+		span{color:#fff;}
+		input,select{display: inline-block !important}
+		button{vertical-align: top!important;}
+		input{border:1px solid #000;outline:none;height: 40px;width:408px !important;font-size:16px;padding: 5px 20px;}
+		.editBox input{width: 100%!important}
+		.add .name,.author,.publish{width:230px !important;}
+		.add .discounted{width:100px !important;}
+		.add .price{width:100px !important;}
+		.title{text-align: center;color:#0275d8;}
+		select{height: 40px;width: 106px !important;text-align: center;}
+		.mid{text-align: center}
+		table{border-collapse:collapse;border-spacing:0;}
+		td,th{border:1px solid #000;}
+		td{padding: 8px 2px!important;}
+		th:hover{background: blue;color:#fff;cursor:pointer;}
+		tr{background: #ecbaba;}
+		tr:nth-of-type(2n-1){background: #d1e6d0;}
+		tr.green{background: #259e1f}
+		th{text-align: center;}
+		.fl{float: left}
+		.fr{float: right}
+	</style>
+</head>
+<body>
+	<div class="list" id="app">
+		 <div class="blur" v-show="isShow">
+			<div class="editBox">
+				<h3 class="title">信息更新</h3>
+				<p>书名：<input type="text" class="form-control" v-model="newGoods.newName"></p>
+				<p>作者：<input type="text" class="form-control" v-model="newGoods.newAuthor"></p>
+				<p>出版社：<input type="text" class="form-control" v-model="newGoods.newPublish"></p>
+				<p>折扣：<input type="text" class="form-control" v-model="newGoods.newDiscounted"></p>
+				<p>价格：<input type="text" class="form-control" v-model="newGoods.newPrice"></p>
+				<p class="isModified"><button class="fl btn  btn-primary" @click="confirm(newGoods)">确认</button><button class="fr btn  btn-primary" @click="cancel()">取消</button></p>
+			</div>
+		</div>
+		<div class="showBox">
+			<div class="head">在线图书管理系统</div>
+			<div class="fl">
+				<span>Search：</span>
+				<input class="form-control" type="text" placeholder="Search items by {{Search}}" v-model="inputVal">
+			</div>
+			<div class="fr">
+				<span>Search By：</span>
+				<select class="form-control" v-model="Search">
+					<option v-for="x in goods.title" value="{{x.text}}">{{x.text}}</option>
+				</select>
+				<span>Sort By：</span>
+				<select class="form-control" v-model="sort" :change="changeType">
+					<option v-for="x in goods.title" value="{{x.text}}">{{x.text}}</option>
+				</select>
+			</div>
+
+			<table class="table table-border">
+				<tr>
+					<th @click="">序号</th>
+					<th @click="bool = -bool">书名</th>
+					<th @click="bool = -bool">作者</th>
+					<th @click="bool = -bool">出版社</th>
+					<th @click="bool = -bool">折扣</th>
+					<th @click="bool = -bool">价格</th>
+					<th>操作</th>
+				</tr>
+				<tr v-for="x in goods.lists | orderBy sort bool | filterBy inputVal in Search" :class="{'green':green == x.id}"  track-by = "$index">
+					<td class="mid">{{$index+1}} | {{x.id}}</td>
+					<td>{{x.name}}</td>
+					<td>{{x.author}}</td>
+					<td>{{x.publish}}</td>
+					<td class="mid">{{x.discounted}}</td>
+					<td class="mid">{{x.price | currency '¥'}}</td>
+					<td class="mid"><a href="javascript:;" @click='modified(x.id,$index)'>修改</a><em>丨</em><a href="javascript:;" @click="delete(x.id)">删除</a></td>
+				</tr>
+					<tr><td>总价：{{total | currency '¥'}}</td>
+				</tr>
+			</table>
+			<div class="add">
+				<input type="text" v-model='books.name' class="form-control name" placeholder="enter the name">
+				<input type="text" v-model="books.author" class="form-control author" placeholder="enter the author">
+				<input type="text" v-model="books.publish" class="form-control publish" placeholder="enter the publish">
+				<input type="text" v-model="books.discounted" class="form-control discounted" placeholder="discounted">
+				<input type="text" v-model="books.price" class="form-control price" placeholder="price">
+				<button class="btn  btn-primary" @click='add(books)'>添加</button>
+			</div> 
+		</div>
+	</div>
+	<script>
+		var data = {
+			isShow:false,
+			Search:'name',
+			sort:'price',
+			green:-1,
+			bool:1,
+			total:0,
+			books:{},
+			newGoods:{
+				index:0,
+				id:0,
+				newName:'',
+				newAuthor:'',
+				newPublish:'',
+				newDiscounted:0,
+				newPrice:0,
+			},
+			goods:{
+				"title":[
+					{'text':'name','value':'书名'},
+					{'text':'author','value':'作者'},
+					{'text':'publish','value':'出版社'},
+					{'text':'discounted','value':'折扣'},
+					{'text':'price','value':'价格'}
+				],
+				"lists":[
+					{
+						"id":1,
+						"name":"用AngularJS开发下一代Web应用",
+						"author":"格林 (Green.B.) 夏德瑞 (Seshadri.S.)",
+						"publish":"电子工业出版社",
+						"price":41.25,
+						"discounted":9
+					},
+					{
+						"id":2,
+						"name":"深入理解Bootstrap (Web开发技术丛书)",
+						"author":"徐涛",
+						"publish":"机械工业出版社",
+						"price":9.99,
+						"discounted":8
+					}
+				],
+			},
+		}
+		var vm = new Vue({
+			el:'#app',
+			data:data,
+			computed:{
+				total:function(){
+					var total = 0;
+					this.goods.lists.forEach(function(val,index){
+						total+=val.price;
+					});
+					return total;
+				}
+			},
+			methods:{
+				// changeType:function(sort){
+				// 	this.sort = sort;
+				// },
+				add:function(books){
+					// if(!(books.price-0)){
+					// 	alert('价格,请输入数字');
+					// 	return;
+					// }else if(!(books.discounted-0)){
+					// 	alert('折扣,请输入小于10的数字');
+					// 	return;
+					// }else{
+						var len = this.goods.lists.length;
+						books.id = ++len;
+
+						books = {
+							"id":len,
+							"name":typeof(books.name) == 'undefined' ? ' ' : books.name,
+							"author":typeof(books.author) == 'undefined' ? ' ' : books.author,
+							"publish":typeof(books.publish) == 'undefined' ? ' ' : books.publish,
+							"price":typeof(books.price) == 'undefined' ? 0 : (books.price-0),
+							"discounted":typeof(books.discounted) == 'undefined' ? '无' : books.discounted == '' ? '无' : (books.discounted-0)
+						};
+						this.goods.lists.push(books);
+						this.books={};
+						this.green = len;
+						setTimeout(function(){
+							this.green = -1;
+						}.bind(this),1555);
+					// }
+				},
+				modified:function(id,$index){
+					this.isShow = true;
+					var lists = this.goods.lists;
+					this.newGoods.id = id;
+					this.newGoods.index = $index+1;
+					this.newGoods.newName = lists[id-1].name;
+					this.newGoods.newAuthor = lists[id-1].author;
+					this.newGoods.newPublish = lists[id-1].publish;
+					this.newGoods.newDiscounted = lists[id-1].discounted;
+					this.newGoods.newPrice = lists[id-1].price;
+					// console.log($index+1);
+					// console.log(id);
+				},
+				confirm:function(newGoods){
+					var id = newGoods.id;
+					var index = newGoods.index;
+					var list = this.goods.lists[id-1];
+					list.name = newGoods.newName;
+					list.author = newGoods.newAuthor;
+					list.publish = newGoods.newPublish;
+					list.discounted = newGoods.newDiscounted;
+					list.price = newGoods.newPrice;
+					// console.dir(index)         
+					// console.dir(id)
+					this.green = id;
+					this.isShow = false;
+					setTimeout(function(){
+						this.green = -1;
+					}.bind(this),1555);
+					// function foo(x){
+					// 	var temp = 3;
+					// 	return function(y){
+					// 		alert(x+y+(++temp));
+					// 	}
+					// }
+					// var bar = foo(2);
+					// bar(10);
+				},
+				cancel:function(){
+					this.isShow = false;
+				},
+				delete:function(id){
+					// console.log(id);
+					var lists = this.goods.lists;
+					var len = lists.length;
+					for(var i = id;i < len;i++){
+						 lists[i].id--;
+					}
+					lists.$remove(lists[id-1]);
+				},
+			},
+			watch:{
+				/*'goods':{
+					handler:function(newVal,oldVal){
+						var total = 0;
+						newVal.lists.forEach(function(val,index){
+							total+=val.price;
+						});
+						this.total = total;
+					},
+					deep:true
+				},
+				'sort':{
+					handler:function(newVal,oldVal){
+						this.sort = '"'+newVal+'"';
+					},
+					deep:true
+				}*/
+				/*'total':{
+					handler:function(newVal,oldVal){
+						this.total = newVal;
+					},
+					deep:true,
+				}*/
+			},
+		});
+	</script>
+</body>
+</html>
